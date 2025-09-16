@@ -10,7 +10,7 @@ db= mysql.connector.connect(
 )
 
 app = Flask(__name__)
-CORS(app)
+cors = CORS(app, origins='*')
 
 @app.route("/")
 def home():
