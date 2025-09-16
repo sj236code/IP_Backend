@@ -16,14 +16,24 @@ cors = CORS(app, origins='*')
 def home():
     return jsonify({"message": "Flask is running!"})
 
-
-@app.route("/testdb")
-def test_db():
+# Top 5 Rented Films
+@app.route("/topFilms")
+def top_films():
     try:
         cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM actor LIMIT 5;")
+        query = """
+            select f.film_id, f.title, c.name as category, count(r.rental_id) as rented
+            from rental r
+            join inventory i on r.inventory_id = i.inventory_id 
+            join film f on i.film_id = f.film_id 
+            join film_category fc on f.film_id = fc.film_id
+            join category c on fc.category_id = c.category_id
+            group by f.film_id, c.name, f.title order by rented desc
+            limit 5;
+        """
+        cursor.execute(query)
         results = cursor.fetchall()
-        return jsonify(results)   # return first 5 rows from actor table
+        return jsonify(results)
     except Exception as e:
         return jsonify({"error": str(e)})
 
