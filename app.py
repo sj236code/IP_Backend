@@ -54,23 +54,40 @@ def top_actors():
         cursor = db.cursor(dictionary=True)
 
         query = """
-            SELECT a.actor_id, a.first_name, a.last_name, COUNT(fa.film_id) AS movies
-            FROM actor a
-            JOIN film_actor fa ON a.actor_id = fa.actor_id
-            JOIN film f ON fa.film_id = f.film_id
-            JOIN inventory i ON f.film_id = i.film_id
-            WHERE i.store_id = 1
-            GROUP BY a.actor_id, a.first_name, a.last_name
-            ORDER BY movies DESC
-            LIMIT 5;
+            select a.actor_id, a.first_name, a.last_name, COUNT(*) AS film_count
+            from inventory i
+            join film f on i.film_id = f.film_id
+            join film_actor fa on f.film_id = fa.film_id
+            join actor a on fa.actor_id = a.actor_id
+            where i.store_id = 1
+            group by a.actor_id, a.first_name, a.last_name
+            order by film_count desc
+            limit 5;
         """
 
         cursor.execute(query)
-        results = cursor.fetchall()
+        top_actors = cursor.fetchall()
+
+        top_film_query = """
+            select f.film_id, f.title, count(r.rental_id) as rental_count
+            from film_actor fa
+            join film f on fa.film_id = f.film_id
+            join inventory i on f.film_id = i.film_id
+            join rental r on i.inventory_id = r.inventory_id
+            where fa.actor_id = %s and i.store_id = 1
+            group by f.film_id, f.title
+            order by rental_count desc
+            limit 5; 
+        """
+
+        for actor in top_actors:
+            cursor.execute(top_film_query, (actor["actor_id"],))
+            films = cursor.fetchall()
+            actor["top_films"] = films
 
         cursor.close()
         db.close()
-        return jsonify(results)
+        return jsonify(top_actors)
     
     except Exception as e:
         return jsonify({"error": str(e)})
