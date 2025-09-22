@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 import mysql.connector
 
@@ -53,6 +53,7 @@ def top_actors():
         db = get_db_connect()
         cursor = db.cursor(dictionary=True)
 
+        # Top 5 Actors in Films in Stock
         query = """
             select a.actor_id, a.first_name, a.last_name, COUNT(*) AS film_count
             from inventory i
@@ -68,6 +69,7 @@ def top_actors():
         cursor.execute(query)
         top_actors = cursor.fetchall()
 
+        # Top 5 movies each Actor is in 
         top_film_query = """
             select f.film_id, f.title, count(r.rental_id) as rental_count
             from film_actor fa
@@ -88,6 +90,39 @@ def top_actors():
         cursor.close()
         db.close()
         return jsonify(top_actors)
+    
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    
+# Search Film by Title, Actor Name, or Category
+@app.route("/searchFilm", methods=['GET'])
+def search_film():
+    try:
+        user_search = request.args.get('query', '')
+        db = get_db_connect()
+        cursor = db.cursor(dictionary=True)
+
+        query = """
+            select distinct f.film_id, f.title, c.name as category
+            from film f
+            join film_category fc on f.film_id = fc.film_id
+            join category c on fc.category_id = c.category_id
+            join film_actor fa on f.film_id = fa.film_id
+            join actor a on fa.actor_id = a.actor_id
+            where f.title like %s
+                or a.first_name like %s
+                or a.last_name like %s
+                or c.name like %s
+        """
+
+        wildcard = f"%{user_search}%"
+        cursor.execute(query, (wildcard, wildcard, wildcard, wildcard))
+        results = cursor.fetchall()
+
+        cursor.close()
+        db.close()
+
+        return jsonify(results)
     
     except Exception as e:
         return jsonify({"error": str(e)})
