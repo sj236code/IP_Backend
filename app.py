@@ -103,16 +103,18 @@ def search_film():
         cursor = db.cursor(dictionary=True)
 
         query = """
-            select distinct f.film_id, f.title, c.name as category
+            (select f.film_id as id, f.title as value, 'film' as type
             from film f
-            join film_category fc on f.film_id = fc.film_id
-            join category c on fc.category_id = c.category_id
-            join film_actor fa on f.film_id = fa.film_id
-            join actor a on fa.actor_id = a.actor_id
-            where f.title like %s
-                or a.first_name like %s
-                or a.last_name like %s
-                or c.name like %s
+            where f.title like %s)
+            union
+            (select a.actor_id as id, concat(a.first_name, ' ',a.last_name) as value, 'actor' as type
+            from actor a 
+            where a.first_name like %s or a.last_name like %s
+            )
+            union
+            (select c.category_id as id, c.name as value, 'category' as type
+            from category c
+            where c.name like %s)
         """
 
         wildcard = f"%{user_search}%"
