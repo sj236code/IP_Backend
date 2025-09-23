@@ -129,5 +129,49 @@ def search_film():
     except Exception as e:
         return jsonify({"error": str(e)})
 
+# Retrieve Film Details Given a Title
+@app.route("/filmDetails", methods=["GET"])
+def film_details():
+    try:
+        film_title = request.args.get('title', '')
+        # print("Searching for ", film_title)
+        db = get_db_connect()
+        cursor = db.cursor(dictionary=True)
+
+        query = """
+            select f.film_id, f.title, f.description, f.release_year, f.language_id,
+                    f.rental_duration, f.rental_rate, f.length, f.replacement_cost, 
+                    f.rating, cast(f.special_features AS CHAR) as special_features,
+                    c.name as category, group_concat(concat(a.first_name, ' ', a.last_name) separator ', ') as actors, 
+                    count(distinct i.inventory_id) as copies_avail
+            from film f
+            join film_category fc on f.film_id = fc.film_id
+            join category c on fc.category_id = c.category_id
+            join film_actor fa on f.film_id = fa.film_id
+            join actor a on fa.actor_id = a.actor_id
+            left join inventory i on f.film_id = i.film_id and i.store_id = 1
+            where f.title like %s
+            group by f.film_id, f.title, f.description, f.release_year, f.language_id,
+                    f.rental_duration, f.rental_rate, f.length, f.replacement_cost, 
+                    f.rating, f.special_features, c.name;
+        """
+
+        wildcard = f"%{film_title}%"
+        cursor.execute(query, (wildcard,))
+        results = cursor.fetchall()
+
+        cursor.close()
+        db.close()
+
+        if not results:
+            return jsonify({"message" : "Film not found"}), 404
+        
+        print(results)
+
+        return jsonify(results)
+    
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
