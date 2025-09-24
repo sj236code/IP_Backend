@@ -173,5 +173,53 @@ def film_details():
     except Exception as e:
         return jsonify({"error": str(e)})
 
+# Search Customers Query
+@app.route("/searchCustomer", methods=["GET"])
+def search_customer():
+    try:
+        query = request.args.get('query', '')
+        db = get_db_connect()
+        cursor = db.cursor(dictionary=True)
+
+        # Default return all Customers
+        if not query or query.strip() == "":
+            sql = """
+                select c.customer_id, c.first_name, c.last_name, c.email, c.active, 
+                concat(a.address, coalesce(concat(' ', a.address2), '')) as address,
+                a.district, ci.city, a.phone
+                from customer c
+                left join address a on c.address_id = a.address_id
+                left join city ci on a.city_id = ci.city_id
+                order by c.customer_id
+            """
+            cursor.execute(sql)
+        # Search by Customer id, First Name, or Last Name
+        else:
+            sql = """
+                select c.customer_id, c.first_name, c.last_name, c.email, c.active, 
+                concat(a.address, coalesce(concat(' ', a.address2), '')) as address,
+                a.district, ci.city, a.phone
+                from customer c
+                left join address a on c.address_id = a.address_id
+                left join city ci on a.city_id = ci.city_id
+                where c.customer_id like %s
+                    or c.first_name like %s
+                    or c.last_name like %s
+                order by c.customer_id
+            """
+            wildcard = f"%{query}%"
+            cursor.execute(sql, (wildcard, wildcard, wildcard))
+        
+        results = cursor.fetchall()
+
+        cursor.close()
+        db.close()
+
+        print(f"Found {len(results)} customers")
+        return jsonify(results)
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
