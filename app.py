@@ -219,7 +219,65 @@ def search_customer():
         return jsonify(results)
     
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e)})
+
+# Add New Customer to DB
+@app.route("/addCustomer", methods=["POST"])
+def add_customer():
+    try:
+        data = request.get_json()
+
+        customer_fields = ['first_name', 'last_name', 'address', 'district']
+        for field in customer_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+            
+        db = get_db_connect()
+        cursor = db.cursor()
+
+        address_query = """
+            insert into address (address, address2, district, city_id, postal_code, phone, location, last_update)
+            values (%s, %s, %s, %s, %s, %s, ST_GeomFromText('POINT(0 0)'), now())   
+        """
+
+        address_values = (
+            data['address'],
+            data.get('address2', ''),
+            data['district'], 1, 
+            data.get('postal_code', ''), 
+            data.get('phone', ''),
+        )
+
+        cursor.execute(address_query, address_values)
+        address_id = cursor.lastrowid
+        
+        customer_query = """
+            insert into customer (store_id, first_name, last_name, email, address_id, active, create_date, last_update)
+            values (%s, %s, %s, %s, %s, %s, now(), now())
+        """
+
+        customer_values = (
+            1, data['first_name'],
+            data['last_name'],
+            data.get('email', ''),
+            address_id, 1
+        )
+
+        cursor.execute(customer_query, customer_values)
+        customer_id = cursor.lastrowid
+
+        db.commit()
+        cursor.close()
+        db.close()
+        
+        return jsonify({
+            'added': True,
+            'message': 'Customer Added',
+            'customer_id' : customer_id
+        }), 201
+    
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
