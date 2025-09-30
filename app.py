@@ -142,7 +142,8 @@ def film_details():
             select f.film_id, f.title, f.description, f.release_year, f.language_id,
                     f.rental_duration, f.rental_rate, f.length, f.replacement_cost, 
                     f.rating, cast(f.special_features AS CHAR) as special_features,
-                    c.name as category, group_concat(concat(a.first_name, ' ', a.last_name) separator ', ') as actors, 
+                    c.name as category, 
+                    group_concat(distinct concat(a.first_name, ' ', a.last_name) separator ', ') as actors, 
                     count(distinct i.inventory_id) as copies_avail
             from film f
             join film_category fc on f.film_id = fc.film_id
