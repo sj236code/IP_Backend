@@ -372,11 +372,11 @@ def rent_film():
         cursor = db.cursor(dictionary=True)
 
         find_available_inventory_query = """
-            SELECT i.inventory_id
-            FROM inventory i
-            LEFT JOIN rental r ON i.inventory_id = r.inventory_id AND r.return_date IS NULL
-            WHERE i.film_id = %s AND i.store_id = 1 AND r.rental_id IS NULL
-            LIMIT 1;
+            select i.inventory_id
+            from inventory i
+            left join rental r on i.inventory_id = r.inventory_id and r.return_date is null
+            where i.film_id = %s and i.store_id = 1 and r.rental_id is null
+            limit 1;
         """
         cursor.execute(find_available_inventory_query, (film_id,))
         available_inventory = cursor.fetchone()
@@ -403,6 +403,34 @@ def rent_film():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/customerDetails/<int:customer_id>", methods=["GET"])
+def customer_details(customer_id):
+    try:
+        db = get_db_connect()
+        cursor = db.cursor(dictionary=True)
+
+        query = """
+            select c.customer_id, c.first_name, c.last_name, c.email, c.active, c.create_date, c.last_update,
+                   a.address, a.address2, a.district, ci.city, co.country, a.postal_code, a.phone
+            from customer c
+            left join address a on c.address_id = a.address_id
+            left join city ci on a.city_id = ci.city_id
+            left join country co on ci.country_id = co.country_id
+            where c.customer_id = %s;
+        """
+        cursor.execute(query, (customer_id,))
+        customer = cursor.fetchone()
+
+        cursor.close()
+        db.close()
+
+        if customer:
+            return jsonify(customer), 200
+        else:
+            return jsonify({"message": "Customer not found"}), 404
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
