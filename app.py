@@ -280,5 +280,48 @@ def add_customer():
     except Exception as e:
         return jsonify({"error": str(e)})
 
+@app.route("/actorDetails", methods=["GET"])
+def actor_details():
+    try:
+        actor_id = request.args.get('actor_id', type=int)
+        if not actor_id:
+            return jsonify({"error": "Actor ID is required"}), 400
+
+        db = get_db_connect()
+        cursor = db.cursor(dictionary=True)
+
+        # Fetch actor details
+        actor_query = """
+            SELECT actor_id, first_name, last_name, last_update
+            FROM actor
+            WHERE actor_id = %s;
+        """
+        cursor.execute(actor_query, (actor_id,))
+        actor = cursor.fetchone()
+
+        if not actor:
+            return jsonify({"message": "Actor not found"}), 404
+
+        # Fetch films for the actor
+        films_query = """
+            SELECT f.film_id, f.title, f.release_year
+            FROM film_actor fa
+            JOIN film f ON fa.film_id = f.film_id
+            WHERE fa.actor_id = %s
+            ORDER BY f.title;
+        """
+        cursor.execute(films_query, (actor_id,))
+        films = cursor.fetchall()
+
+        actor["films"] = films
+
+        cursor.close()
+        db.close()
+
+        return jsonify(actor)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
