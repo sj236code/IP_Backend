@@ -403,6 +403,7 @@ def rent_film():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# Fetch Customer Details
 @app.route("/customerDetails/<int:customer_id>", methods=["GET"])
 def customer_details(customer_id):
     try:
@@ -431,6 +432,45 @@ def customer_details(customer_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+# Customer Rental History
+@app.route("/customerHistory/<int:customer_id>", methods=["GET"])
+def customer_history(customer_id):
+    try:
+        db = get_db_connect()
+        cursor = db.cursor(dictionary=True)
+
+        query = """
+            select r.rental_id, r.rental_date, r.return_date, f.film_id, f.title
+            from rental r
+            join inventory i on r.inventory_id = i.inventory_id
+            join film f on i.film_id = f.film_id
+            where r.customer_id = %s
+            order by r.rental_date desc;
+        """
+
+        cursor.execute(query, (customer_id,))
+        rentals = cursor.fetchall()
+
+        current_rentals = []
+        previous_rentals = []
+
+        for rental in rentals:
+            if rental["return_date"] is None:
+                current_rentals.append(rental)
+            else:
+                previous_rentals.append(rental)
+
+        cursor.close()
+        db.close()
+
+        return jsonify({
+            "current_rentals": current_rentals,
+            "previous_renatls": previous_rentals
+        }), 200
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}),500
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
