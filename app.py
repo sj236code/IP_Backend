@@ -280,6 +280,7 @@ def add_customer():
     except Exception as e:
         return jsonify({"error": str(e)})
 
+# Fetch Actor Details
 @app.route("/actorDetails", methods=["GET"])
 def actor_details():
     try:
@@ -322,6 +323,36 @@ def actor_details():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+# Validate Customer based on ID
+@app.route("/validateCustomer/<int:customer_id>", methods=["GET"])
+def validate_customer(customer_id):
+    try:
+        db = get_db_connect()
+        cursor = db.cursor(dictionary=True)
+
+        query = """
+            SELECT customer_id, first_name, last_name, active
+            FROM customer
+            WHERE customer_id = %s;
+        """
+        cursor.execute(query, (customer_id,))
+        customer = cursor.fetchone()
+
+        cursor.close()
+        db.close()
+
+        if customer:
+            if customer["active"]:
+                return jsonify({"valid": True, "message": "Customer is valid and active", "customer": customer}), 200
+            else:
+                return jsonify({"valid": False, "message": "Customer exists but is inactive"}), 200
+        else:
+            return jsonify({"valid": False, "message": "Customer ID not found"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
