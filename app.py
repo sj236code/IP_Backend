@@ -144,13 +144,17 @@ def film_details():
                     f.rating, cast(f.special_features AS CHAR) as special_features,
                     c.name as category, 
                     group_concat(distinct concat(a.first_name, ' ', a.last_name) separator ', ') as actors, 
-                    count(distinct i.inventory_id) as copies_avail
+                    (
+                        select count(i_avail.inventory_id)
+                        from inventory i_avail
+                        left join rental r_active on i_avail.inventory_id = r_active.inventory_id and r_active.return_date is null
+                        where i_avail.film_id = f.film_id and i_avail.store_id = 1 and r_active.rental_id is null
+                    ) as copies_avail
             from film f
             join film_category fc on f.film_id = fc.film_id
             join category c on fc.category_id = c.category_id
             join film_actor fa on f.film_id = fa.film_id
             join actor a on fa.actor_id = a.actor_id
-            left join inventory i on f.film_id = i.film_id and i.store_id = 1
             where f.title like %s
             group by f.film_id, f.title, f.description, f.release_year, f.language_id,
                     f.rental_duration, f.rental_rate, f.length, f.replacement_cost, 
@@ -349,6 +353,52 @@ def validate_customer(customer_id):
                 return jsonify({"valid": False, "message": "Customer exists but is inactive"}), 200
         else:
             return jsonify({"valid": False, "message": "Customer ID not found"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+# Rents a Film out to Customer
+@app.route("/rentFilm", methods=["POST"])
+def rent_film():
+    try:
+        data = request.get_json()
+        film_id = data.get("film_id")
+        customer_id = data.get("customer_id")
+
+        if not film_id or not customer_id:
+            return jsonify({"error": "Film ID and Customer ID are required"}), 400
+
+        db = get_db_connect()
+        cursor = db.cursor(dictionary=True)
+
+        find_available_inventory_query = """
+            SELECT i.inventory_id
+            FROM inventory i
+            LEFT JOIN rental r ON i.inventory_id = r.inventory_id AND r.return_date IS NULL
+            WHERE i.film_id = %s AND i.store_id = 1 AND r.rental_id IS NULL
+            LIMIT 1;
+        """
+        cursor.execute(find_available_inventory_query, (film_id,))
+        available_inventory = cursor.fetchone()
+
+        if not available_inventory:
+            cursor.close()
+            db.close()
+            return jsonify({"error": "No available copies for this film"}), 404
+
+        inventory_id = available_inventory["inventory_id"]
+
+        insert_rental_query = """
+            INSERT INTO rental (rental_date, inventory_id, customer_id, staff_id, last_update)
+            VALUES (NOW(), %s, %s, 1, NOW());
+        """
+        cursor.execute(insert_rental_query, (inventory_id, customer_id))
+        db.commit()
+
+        cursor.close()
+        db.close()
+
+        return jsonify({"success": True, "message": f"Film ID {film_id} rented to Customer ID {customer_id} using Inventory ID {inventory_id}"}), 201
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
