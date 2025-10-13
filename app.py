@@ -506,6 +506,109 @@ def return_film():
 
     except Exception as e:
         return jsonify({"error": str(e)}),500
+    
+# Update Customer Info
+@app.route("/updateCustomer", methods=["PUT"])
+def update_customer():
+    try:
+        data = request.get_json()
+        customer_id = data.get("customer_id")
+
+        if not customer_id:
+            return jsonify({"error": "Customer ID is required for update"}), 400
+
+        db = get_db_connect()
+        cursor = db.cursor()
+
+        fetch_address_id_query = "SELECT address_id FROM customer WHERE customer_id = %s;"
+        cursor.execute(fetch_address_id_query, (customer_id,))
+        customer_record = cursor.fetchone()
+
+        if not customer_record:
+            return jsonify({"error": "Customer not found"}), 404
+
+        customer_address_id = customer_record[0] 
+
+        customer_updates = []
+        customer_update_values = []
+
+        if "first_name" in data:
+            customer_updates.append("first_name = %s")
+            customer_update_values.append(data["first_name"])
+        if "last_name" in data:
+            customer_updates.append("last_name = %s")
+            customer_update_values.append(data["last_name"])
+        if "email" in data:
+            customer_updates.append("email = %s")
+            customer_update_values.append(data["email"])
+        if "active" in data:
+            customer_updates.append("active = %s")
+            customer_update_values.append(data["active"])
+
+        if customer_updates:
+            customer_updates_sql = ", ".join(customer_updates)
+            final_customer_values = tuple(customer_update_values + [customer_id])
+            customer_query = f"UPDATE customer SET {customer_updates_sql}, last_update = NOW() WHERE customer_id = %s;"
+            cursor.execute(customer_query, final_customer_values)
+
+        address_updates = []
+        address_update_values = []
+
+        if "address" in data:
+            address_updates.append("address = %s")
+            address_update_values.append(data["address"])
+        if "address2" in data:
+            address_updates.append("address2 = %s")
+            address_update_values.append(data["address2"])
+        if "district" in data:
+            address_updates.append("district = %s")
+            address_update_values.append(data["district"])
+        if "city_id" in data:
+            address_updates.append("city_id = %s")
+            address_update_values.append(data["city_id"])
+        if "postal_code" in data:
+            address_updates.append("postal_code = %s")
+            address_update_values.append(data["postal_code"])
+        if "phone" in data:
+            address_updates.append("phone = %s")
+            address_update_values.append(data["phone"])
+
+        if address_updates:
+            address_updates_sql = ", ".join(address_updates)
+            final_address_values = tuple(address_update_values + [customer_address_id])
+            address_query = f"UPDATE address SET {address_updates_sql}, last_update = NOW() WHERE address_id = %s;"
+            cursor.execute(address_query, final_address_values)
+
+        db.commit()
+        cursor.close()
+        db.close()
+
+        return jsonify({"success": True, "message": f"Customer {customer_id} updated successfully."}), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+# Delete Customer
+@app.route("/deleteCustomer/<int:customer_id>", methods=["DELETE"])
+def delete_customer(customer_id):
+    try:
+        db = get_db_connect()
+        cursor = db.cursor()
+
+        # Delete from customer table
+        delete_customer_query = "delete from customer where customer_id = %s;"
+        cursor.execute(delete_customer_query, (customer_id,))
+
+        db.commit()
+        cursor.close()
+        db.close()
+
+        return jsonify({"success": True, "message": f"Customer {customer_id} deleted successfully."}), 200
+
+    except Exception as e:
+        db.rollback()
+        # if customer has rentals
+        return jsonify({"error": f"Failed to delete customer: {str(e)}"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
