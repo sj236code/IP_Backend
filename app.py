@@ -453,22 +453,57 @@ def customer_history(customer_id):
         rentals = cursor.fetchall()
 
         current_rentals = []
-        previous_rentals = []
+        prev_rentals = []
 
         for rental in rentals:
             if rental["return_date"] is None:
                 current_rentals.append(rental)
             else:
-                previous_rentals.append(rental)
+                prev_rentals.append(rental)
 
         cursor.close()
         db.close()
 
         return jsonify({
             "current_rentals": current_rentals,
-            "previous_renatls": previous_rentals
+            "previous_rentals": prev_rentals
         }), 200
     
+    except Exception as e:
+        return jsonify({"error": str(e)}),500
+    
+# Return Film
+@app.route("/returnFilm", methods=["POST"])
+def return_film():
+    try:
+        data = request.get_json()
+        rental_id = data.get("rental_id")
+
+        if not rental_id:
+            return jsonify({"error": "RentalID is required"}), 400
+
+        db = get_db_connect()
+        cursor = db.cursor(dictionary=True)
+
+        query = """
+            update rental
+            set return_date = now(), last_update = NOW()
+            where rental_id = %s and return_date is null;
+        """
+
+        cursor.execute(query, (rental_id,))
+        db.commit()
+
+        if cursor.rowcount == 0:
+            cursor.close()
+            db.close()
+            return jsonify({"error": "Rental not found or already returned"}), 404
+
+        cursor.close()
+        db.close()
+
+        return jsonify({"success": True, "message": f"Film returned for Rental ID {rental_id}"}),200
+
     except Exception as e:
         return jsonify({"error": str(e)}),500
 
